@@ -18,3 +18,10 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
+
+# memedeck dependencies
+pika
+python-dotenv
+pillow 
+azure-storage-blob 
+cairosvg
