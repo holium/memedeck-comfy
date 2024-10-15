@@ -11,6 +11,14 @@ from app.logger import setup_logger
 
 setup_logger(log_level=args.verbose)
 
+# ---------------------------------------------------------------------------------------
+# memedeck imports
+# ---------------------------------------------------------------------------------------
+from memedeck import MemedeckWorker
+
+import sys
+sys.stdout = open(os.devnull, 'w') # disable all print statements
+# ---------------------------------------------------------------------------------------
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -104,8 +112,10 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
-def prompt_worker(q, server):
-    e = execution.PromptExecutor(server, lru_size=args.cache_lru)
+def prompt_worker(q, server, memedeck_worker):
+    e = execution.PromptExecutor(server, memedeck_worker, lru_size=args.cache_lru)
+    
+    # threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -159,21 +169,25 @@ def prompt_worker(q, server):
                 last_gc_collect = current_time
                 need_gc = False
 
-async def run(server, address='', port=8188, verbose=True, call_on_start=None):
+async def run(server, memedeck_worker, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
     for addr in address.split(","):
         addresses.append((addr, port))
-    await asyncio.gather(server.start_multi_address(addresses, call_on_start), server.publish_loop())
+    # add memedeck worker publish loop
+    await asyncio.gather(server.start_multi_address(addresses, call_on_start), server.publish_loop(), memedeck_worker.publish_loop())
 
 
-def hijack_progress(server):
+
+def hijack_progress(server, memedeck_worker):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
-        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
-
-        server.send_sync("progress", progress, server.client_id)
+        server.send_sync("progress", {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}, server.client_id)
+        if memedeck_worker.ws_id is not None:
+            memedeck_worker.send_sync("progress", {"value": value, "max": total, "prompt_id": memedeck_worker.last_prompt_id, "node": server.last_node_id}, memedeck_worker.ws_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
+            if memedeck_worker.ws_id is not None:
+                memedeck_worker.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, memedeck_worker.ws_id)
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
@@ -200,7 +214,8 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
-    q = execution.PromptQueue(server)
+    memedeck_worker = MemedeckWorker(loop)
+    q = execution.PromptQueue(server, memedeck_worker)
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
@@ -215,10 +230,12 @@ if __name__ == "__main__":
     cuda_malloc_warning()
 
     server.add_routes()
-    hijack_progress(server)
+    hijack_progress(server, memedeck_worker)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
-
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, server, memedeck_worker)).start()
+    threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
+    # set logging level to info
+    
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
@@ -258,7 +275,8 @@ if __name__ == "__main__":
 
     try:
         loop.run_until_complete(server.setup())
-        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+        loop.run_until_complete(run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+        # loop.run_until_complete(asyncio.gather(memedeck_worker, server.publish_loop()))
     except KeyboardInterrupt:
         logging.info("\nStopped server")
 

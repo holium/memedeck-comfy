@@ -193,9 +193,9 @@ def load_lora(lora, to_load):
             patch_dict["{}.bias".format(to_load[x][:-len(".weight")])] = ("diff", (diff_bias,))
             loaded_keys.add(diff_bias_name)
 
-    for x in lora.keys():
-        if x not in loaded_keys:
-            logging.warning("lora key not loaded: {}".format(x))
+    # for x in lora.keys():
+    #     if x not in loaded_keys:
+    #         logging.warning("lora key not loaded: {}".format(x))
 
     return patch_dict
 
