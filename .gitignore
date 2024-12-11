@@ -5,8 +5,14 @@ __pycache__/
 !/input/example.png
 /models/
 /temp/
-/custom_nodes/
+# Ignore everything in custom_nodes
+/custom_nodes/*
+
+# Explicitly allow these files/directories
 !custom_nodes/example_node.py.example
+!custom_nodes/MemedeckComfyNodes/
+!custom_nodes/MemedeckComfyNodes/**
+
 extra_model_paths.yaml
 /.vs
 .vscode/
@@ -26,12 +32,11 @@ web_custom_versions/
 
 
 models
-custom_nodes
 models/
 flux_loras/
-custom_nodes/
 pysssss-workflows/
 
 comfy-venv
 comfy_venv_3.11
 models-2
+
