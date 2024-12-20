@@ -31,3 +31,4 @@ torchao
 insightface
 onnxruntime-gpu
 cairosvg
+lxml
