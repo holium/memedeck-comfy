@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 import time
@@ -170,6 +171,20 @@ class MD_CompressAdjustNode:
                     "default": 640,
                     "description": "The height of the video."
                 }),
+                "baseline_config": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": json.dumps({
+                            "ideal_blockiness": 600,
+                            "ideal_edge_density": 12,
+                            "ideal_color_variation": 10000,
+                            "blockiness_weight": -0.006,
+                            "edge_density_weight": 0.32,
+                            "color_variation_weight": -0.00005
+                        }, indent=4),
+                    },
+                ),
             },
         }
 
@@ -252,10 +267,19 @@ class MD_CompressAdjustNode:
         target_crf = round(target_crf, 2)
         return target_crf
     
-    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832):        
+    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832, baseline_config=None):        
         temp_dir = "temp_video"
         filename = f"frame_{time.time()}".split('.')[0]
         os.makedirs(temp_dir, exist_ok=True)
+        
+        if baseline_config is not None:
+            baseline_config = json.loads(baseline_config)
+            self.ideal_blockiness = baseline_config["ideal_blockiness"]
+            self.ideal_edge_density = baseline_config["ideal_edge_density"]
+            self.ideal_color_variation = baseline_config["ideal_color_variation"]
+            self.blockiness_weight = baseline_config["blockiness_weight"]
+            self.edge_density_weight = baseline_config["edge_density_weight"]
+            self.color_variation_weight = baseline_config["color_variation_weight"]
                 
         # Convert single image to list if necessary
         if len(image.shape) == 3:

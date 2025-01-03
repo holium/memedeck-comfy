@@ -616,7 +616,7 @@ class MemedeckAzureStorage:
             raise Exception(f"Failed to upload blob: {e}")
         
         # close the blob client
-        blob_client.close()
+        await blob_client.close()
 
         # Construct and return the blob URL
         blob_url = f"https://media.memedeck.xyz/{self.container}/{blob_name}"

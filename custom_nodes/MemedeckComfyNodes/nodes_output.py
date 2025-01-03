@@ -136,7 +136,7 @@ class MD_SaveMP4:
             "subfolder": subfolder,
             "type": "output",
             "format": "video/mp4",
-            "frame_rate": fps,
+            "frame_rate": fps
         }
 
         return {
