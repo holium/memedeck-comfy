@@ -40,3 +40,5 @@ comfy-venv
 comfy_venv_3.11
 models-2
 
+!comfy/ldm/models/autoencoder.py
+
